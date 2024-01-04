@@ -2,6 +2,7 @@ require('dotenv').config()
 const express = require('express');
 const bcrypt = require("bcrypt")
 const passport = require("passport")
+const { body, validationResult } = require('express-validator');
 const router = express.Router();
 const mongoose = require("mongoose")
 
@@ -37,33 +38,68 @@ const userSchema = mongoose.Schema({
 
 const Users = mongoose.model("Users", userSchema)
 
+const passwordTest = (value) => {
+  if (length(value))
+  if (!/[A-Z]/.test(value)) {
+    throw new Error('The string must contain at least one capital letter');
+  }
+  return true;
+};
+
 
 router.get('/', function(req, res, next) {
   res.render('index', { title: 'Express' });
 });
 
-router.post("/api/user/register/", async (req, res) => {
-  try {
-    const existingUsers = await Users.find()
-    const found = existingUsers.find((user) => user.email == req.body.email);
-
-    if (found) {
-      return res.status(403).send({
-        "email":"Email already in use."
-      })
+router.post(
+  "/api/user/register/",
+  body("email").isEmail(),
+  body('password').custom( value => {
+    const specials = /[~`!@#$%^&*()-_+={}[]\|\\;:"<>,.\/\?]/
+    if (value.length < 8) {
+      throw new Error("too short");
+    }
+    else if (!/[a-z]/.test(value)) {
+      throw new Error("lowercase letter missing")
+    }
+    else if (!/[A-Z]/.test(value)) {
+      throw new Error("uppercase letter missing")
+    }
+    else if (!/[0-9]/.test(value)) {
+      throw new Error("number missing")
+    }
+    else if (!/[~`!#$%\^&*+=\-\[\]\\';,/{}|\\":<>\?]/.test(value)) {
+      throw new Error("special character missing")
+    }
+    return true
+  }),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).send(errors.errors[0].msg)
     }
 
-    const hashedPassword = await bcrypt.hash(req.body.password, 10)
-    newUser = {
-        id: Date.now().toString(),
-        email: req.body.email,
-        password: hashedPassword
+    try {
+      const existingUsers = await Users.find()
+      const found = existingUsers.find((user) => user.email == req.body.email);
+
+      if (found) {
+        return res.status(403).send({
+          "email":"Email already in use."
+        })
+      }
+
+      const hashedPassword = await bcrypt.hash(req.body.password, 10)
+      newUser = {
+          id: Date.now().toString(),
+          email: req.body.email,
+          password: hashedPassword
+      }
+      Users.create(newUser)
+      res.send(newUser)
+    } catch {
+        res.send("shit's fucked")
     }
-    Users.create(newUser)
-    res.send(newUser)
-  } catch {
-      res.send("shit's fucked")
-  }
 })
 
 router.post("/api/user/login", async (req, res) => {
