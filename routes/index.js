@@ -90,7 +90,9 @@ router.post("/api/user/login", async (req, res) => {
 })
 
 router.get("/api/private", passport.authenticate('jwt', {session: false}), (req, res) => {
-  res.send("good job")
+  res.send({
+    email:req.user.email
+  })
 })
 
 module.exports = router;
