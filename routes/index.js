@@ -36,15 +36,13 @@ const userSchema = mongoose.Schema({
   password: String
 })
 
-const Users = mongoose.model("Users", userSchema)
+const todoSchema = mongoose.Schema({
+  user: String,
+  items: Array
+})
 
-const passwordTest = (value) => {
-  if (length(value))
-  if (!/[A-Z]/.test(value)) {
-    throw new Error('The string must contain at least one capital letter');
-  }
-  return true;
-};
+const Users = mongoose.model("Users", userSchema)
+const Todos = mongoose.model("Todos", todoSchema)
 
 
 router.get('/', function(req, res, next) {
@@ -55,7 +53,6 @@ router.post(
   "/api/user/register/",
   body("email").isEmail(),
   body('password').custom( value => {
-    const specials = /[~`!@#$%^&*()-_+={}[]\|\\;:"<>,.\/\?]/
     if (value.length < 8) {
       throw new Error("too short");
     }
@@ -95,7 +92,7 @@ router.post(
           email: req.body.email,
           password: hashedPassword
       }
-      Users.create(newUser)
+      await Users.create(newUser)
       res.send(newUser)
     } catch {
         res.send("shit's fucked")
@@ -129,6 +126,24 @@ router.get("/api/private", passport.authenticate('jwt', {session: false}), (req,
   res.send({
     email:req.user.email
   })
+})
+
+router.post("/api/todos", passport.authenticate('jwt', {session: false}), async (req, res) => {
+  const newTodos = req.body.items
+  const id = req.user._id
+  let todos = await Todos.findOne({user: id})
+
+  if (todos && todos.length != 0) {
+    await Todos.updateOne({user:id}, {$push: {items: {$each: newTodos}}})
+  } else {
+    await Todos.create({
+      user: id,
+      items: newTodos
+    })
+  }
+  todos = await Todos.findOne({user:id})
+  console.log(todos)
+  return res.send(todos)
 })
 
 module.exports = router;
